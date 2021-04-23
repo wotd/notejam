@@ -1,0 +1,14 @@
+FROM python:2.7.18-slim
+
+ADD . .
+WORKDIR /notejam/
+
+RUN apt update && apt install -y python-psycopg2 libpq-dev python-dev gcc && \
+    pip install -r ../requirements.txt && \
+    pip install gunicorn && \
+    pip install django_prometheus && \
+    pip install psycopg2
+
+EXPOSE 8000
+
+CMD ["gunicorn", "--bind", ":8000", "notejam.wsgi"]

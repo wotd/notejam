@@ -1,0 +1,99 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+
+variables:
+  app_language: 'django'  
+  docker_repo: 'wotd/notejam'
+
+
+pool: Home-ARM
+
+stages:
+- stage: Build
+  displayName: Build ${{ variables.app_language }} image
+  jobs:  
+  - job: DockerImageBuild
+    displayName: Build and push Docker image
+    steps:
+      - task: Docker@2
+        inputs:
+          containerRegistry: 'docker-hub'
+          repository: '$(docker_repo)'
+          command: 'buildAndPush'
+          Dockerfile: '**/Dockerfiles/$(app_language)'
+          buildContext: '$(app_language)/'
+          tags: '$(app_language)-$(Build.BuildId)'
+  - job: TestApplication
+    displayName: Test application
+    steps:
+      - checkout: none
+      - script: |
+          docker run --rm $(docker_repo):$(app_language)-$(Build.BuildId) ./manage.py test
+    dependsOn: DockerImageBuild
+    condition: succeeded()
+
+- stage: DevDeployment
+  displayName: Dev Deployment
+  jobs:
+    - job: PrepareDeployment
+      timeoutInMinutes: 10
+      displayName: Prepare k8s deployment file
+      steps:
+      - template: templates/deployment.yaml   
+        parameters:
+          stage: dev
+          database_port: ''
+
+- stage: StgDeployment
+  dependsOn: DevDeployment
+  condition: succeeded()
+  displayName: Staging Deployment
+  jobs:
+    - job: PrepareDeployment
+      timeoutInMinutes: 10
+      displayName: Prepare k8s deployment file
+      steps:
+      - template: templates/deployment.yaml   
+        parameters:
+          stage: stg
+          database_port: 5432
+          database_name: notejam.db
+          database_host: stg-postgres
+
+- stage: StgTests
+  dependsOn: StgDeployment
+  condition: succeeded()
+  displayName: Staging Tests
+  jobs:
+    - job: E2ETests
+      displayName: E2E / integration tests
+      steps:
+      - script: |
+          echo "Dummy stage - Testing application"
+
+- stage: ProdDeployment
+  dependsOn: StgTests
+  condition: succeeded()
+  displayName: Production Deployment
+  jobs:
+    - job: PrepareDeployment
+      timeoutInMinutes: 10
+      displayName: Prepare k8s deployment file
+      steps:
+      - template: templates/deployment.yaml   
+        parameters:
+          stage: prd
+          database_port: 5432
+          replicas: 2
+          database_name: notejam_prod.db
+          database_host: prd-postgres
+
+
+
+

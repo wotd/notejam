@@ -13,16 +13,17 @@ ADMINS = (
 MANAGERS = ADMINS
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': 'notejam.db',
-        'USER': '',
-        'PASSWORD': '',
-        'HOST': '',
-        'PORT': '',
-    }
-}
-
+     'default': {
+         'ENGINE': 'django.db.backends.{}'.format(
+             os.getenv('DATABASE_ENGINE', 'sqlite3')
+         ),
+         'NAME': os.getenv('DATABASE_NAME', 'notejam.db'),
+         'USER': os.getenv('DATABASE_USERNAME', ''),
+         'PASSWORD': os.getenv('DATABASE_PASSWORD', ''),
+         'HOST': os.getenv('DATABASE_HOST', ''),
+         'PORT': os.getenv('DATABASE_PORT', ''),
+     }
+ }
 # Local time zone for this installation. Choices can be found here:
 # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
 # although not all choices may be available on all operating systems.

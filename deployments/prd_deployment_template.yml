@@ -1,0 +1,138 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${NAMESPACE}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${DATABASE_HOST}
+  namespace: ${NAMESPACE}
+spec:
+  selector:
+    matchLabels:
+      app: ${DATABASE_HOST}
+  template:
+    metadata:
+      labels:
+        app: ${DATABASE_HOST}
+    spec:
+      containers:
+      - name: ${DATABASE_HOST}
+        image: postgres:10.4
+        env:
+          - name: POSTGRES_DB
+            value: ${DATABASE_NAME}
+        envFrom:
+          - secretRef:
+              name: ${APP_NAME}-db-secret
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        volumeMounts:
+          - mountPath: /var/lib/postgresql/data
+            name: postgredb
+        ports:
+        - containerPort: ${DATABASE_PORT}
+      volumes:
+        - name: postgredb
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${DATABASE_HOST}
+  namespace: ${NAMESPACE}
+spec:
+  selector:
+    app: ${DATABASE_HOST}
+  ports:
+  - port: ${DATABASE_PORT}
+    targetPort: ${DATABASE_PORT}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${APP_NAME}
+  namespace: ${NAMESPACE}
+spec:
+  replicas: ${REPLICAS}
+  selector:
+    matchLabels:
+      app: ${APP_NAME}
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: 'true' 
+      labels:
+        app: ${APP_NAME}
+    spec:
+      initContainers:
+      - name: init-myservice
+        image: busybox
+        command: ['sh', '-c', 'while [ "$(nc -zvw3 ${DATABASE_HOST} ${DATABASE_PORT} 2>&1 | grep -v open | wc -l)" != "0" ]; do sleep 2 ; echo "Waiting..."; done']
+      containers:
+      - name: ${APP_NAME}
+        image: ${CONTAINER_IMAGE}
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        env:
+          - name: DATABASE_ENGINE
+            value: postgresql_psycopg2
+          - name: DATABASE_NAME
+            value: ${DATABASE_NAME}
+          - name: DATABASE_HOST
+            value: ${DATABASE_HOST}
+          - name: DATABASE_PORT
+            value: '${DATABASE_PORT}'
+        envFrom:
+          - secretRef:
+              name: ${APP_NAME}-secret
+        ports:
+        - containerPort: ${CONTAINER_PORT}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${APP_NAME}-svc
+  namespace: ${NAMESPACE}
+  labels:
+    run: ${APP_NAME}
+spec:
+  type: LoadBalancer
+  ports:
+  - port: ${CONTAINER_PORT}
+    protocol: TCP
+    targetPort: ${CONTAINER_PORT}
+  selector:
+    run: ${APP_NAME}
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ${APP_NAME}
+  namespace: ${NAMESPACE}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ${APP_NAME}
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: AverageValue
+        averageValue: 100Mi
+
