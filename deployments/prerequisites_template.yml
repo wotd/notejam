@@ -4,14 +4,19 @@ metadata:
   name: prd-django-notejam
 ---
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: stg-django-notejam
+---
+apiVersion: v1
 kind: Secret
 metadata:
   name: django-notejam-secret
   namespace: prd-django-notejam
 type: Opaque
 data:
-  DATABASE_USERNAME: bm90ZWphbXVzZXI=
-  DATABASE_PASSWORD: dGFqbmVoYXNsbw==
+  DATABASE_USERNAME: <USERNAME>
+  DATABASE_PASSWORD: <PASSWORD>
 ---
 apiVersion: v1
 kind: Secret
@@ -20,5 +25,5 @@ metadata:
   namespace: prd-django-notejam
 type: Opaque
 data:
-  POSTGRES_USER: bm90ZWphbXVzZXI=
-  POSTGRES_PASSWORD: dGFqbmVoYXNsbw==
+  POSTGRES_USER: <USERNAME>
+  POSTGRES_PASSWORD: <PASSWORD>
